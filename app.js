@@ -235,11 +235,15 @@ function renderRoomDetail() {
   const r = state.rooms.find(x => x.id === state.currentRoomId);
   if (!r) return;
   document.getElementById('roomTitle').textContent = r.name;
-  const badgeClass = `status-${r.status}`;
-  const badgeLabel = { pending: 'à faire', processing: 'analyse en cours...', done: 'terminé', error: 'erreur' }[r.status] || r.status;
+  const stale = r.status === 'processing' && (Date.now() - new Date(r.created_at).getTime()) > 3 * 60 * 1000;
+  const badgeClass = stale ? 'status-error' : `status-${r.status}`;
+  const badgeLabel = stale ? 'bloqué ? (>3min)' : ({ pending: 'à faire', processing: 'analyse en cours...', done: 'terminé', error: 'erreur' }[r.status] || r.status);
   const badge = document.getElementById('roomStatusBadge');
   badge.className = `status-badge ${badgeClass}`;
   badge.textContent = badgeLabel;
+  if (stale) {
+    document.getElementById('roomAnalyzeStatus').textContent = "Cette pièce est en 'processing' depuis plus de 3 minutes — la fonction serveur a probablement échoué silencieusement. Vérifie les logs Cloudflare, puis relance l'analyse.";
+  }
 
   // thumbs: existing uploaded photos + pending ones
   const thumbs = document.getElementById('roomThumbs');
@@ -387,15 +391,37 @@ document.getElementById('analyzeRoomBtn').addEventListener('click', async () => 
 
   document.getElementById('roomAnalyzeStatus').textContent = 'Analyse en cours (tu peux passer à une autre pièce, le traitement continue en arrière-plan)...';
 
-  // 3. Trigger backend analysis (Cloudflare Pages Function) - fire and forget
+  // 3. Trigger backend analysis (Cloudflare Pages Function) - fire and forget,
+  //    but still check the HTTP status so a 404/500 doesn't leave the room
+  //    silently stuck in "processing" forever.
   try {
-    await fetch('/api/analyze-room', {
+    const res = await fetch('/api/analyze-room', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ roomId, roomName: room.name }),
     });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => res.statusText);
+      await supabase.from('rooms').update({
+        status: 'error',
+        error_message: `Échec de déclenchement (HTTP ${res.status}) : ${errText.slice(0, 300)}`,
+      }).eq('id', roomId);
+      document.getElementById('roomAnalyzeStatus').textContent = `Erreur : la fonction d'analyse a répondu ${res.status}. Vérifie le déploiement Cloudflare.`;
+      document.getElementById('analyzeRoomBtn').disabled = false;
+      await loadRooms();
+      renderRoomDetail();
+      return;
+    }
   } catch (err) {
-    console.error('Trigger error', err);
+    await supabase.from('rooms').update({
+      status: 'error',
+      error_message: 'Impossible de joindre la fonction d\'analyse : ' + err.message,
+    }).eq('id', roomId);
+    document.getElementById('roomAnalyzeStatus').textContent = 'Erreur réseau au déclenchement de l\'analyse.';
+    document.getElementById('analyzeRoomBtn').disabled = false;
+    await loadRooms();
+    renderRoomDetail();
+    return;
   }
 
   document.getElementById('roomAnalyzeStatus').textContent = 'Analyse lancée. Le statut se mettra à jour automatiquement.';
