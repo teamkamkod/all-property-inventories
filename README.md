@@ -1,5 +1,9 @@
 # all. Inventory — PWA de test terrain
 
+## ⚠️ Architecture de déploiement
+
+Ce projet est déployé en **Cloudflare Worker avec assets statiques** (domaine `*.workers.dev`), pas en Cloudflare Pages classique. `worker.js` sert à la fois les fichiers statiques et la route `/api/analyze-room`. La configuration est dans `wrangler.jsonc`.
+
 ## Ce qui est déjà fait
 
 - **Projet Supabase créé** : `aps-inventory-test` (région Singapour)
@@ -11,38 +15,31 @@
 
 ## Ce qu'il te reste à faire
 
-### 1. Créer le repo GitHub et pousser le code
+### 1. Vérifier que le projet Cloudflare détecte bien `wrangler.jsonc`
 
-```bash
-cd aps-inventory
-git init
-git add .
-git commit -m "Initial commit - APS inventory test PWA"
-git remote add origin <ton-repo-github>
-git push -u origin main
-```
+Dans le dashboard Cloudflare (Workers & Pages > ton projet > Settings > Build), la présence de `wrangler.jsonc` à la racine du repo doit suffire à ce que Cloudflare exécute `wrangler deploy` automatiquement à chaque push. Si le projet a été créé avant l'ajout de ce fichier, il peut être nécessaire de vérifier/forcer cette détection (Settings > Build > Build command, qui doit rester vide ou utiliser wrangler).
 
-### 2. Connecter le repo à Cloudflare Pages
+### 2. Ajouter les secrets d'environnement
 
-Comme pour le PWA APS existant : Cloudflare Pages → Create project → Connect to Git → sélectionner le repo.
-- **Build command** : (aucun, site statique) — laisser vide
-- **Build output directory** : `/`
-
-### 3. Ajouter les secrets d'environnement dans Cloudflare Pages
-
-Dans **Settings → Environment variables** du projet Cloudflare Pages, ajouter (en Production ET Preview) :
+Dans **Settings → Variables and Secrets** du Worker, ajouter (en Production) :
 
 | Variable | Valeur |
 |---|---|
-| `ANTHROPIC_API_KEY` | ta clé API Anthropic (nouvelle clé, pas celle déjà exposée) |
+| `ANTHROPIC_API_KEY` | ta clé API Anthropic |
 | `SUPABASE_URL` | `https://luduooplhdhnzomirnre.supabase.co` |
-| `SUPABASE_ANON_KEY` | la clé anon (fournie séparément, déjà dans `app.js` aussi pour le client) |
+| `SUPABASE_ANON_KEY` | la clé anon (déjà dans `app.js` aussi pour le client) |
 
-⚠️ Ces variables doivent être marquées comme **secrets** (chiffrées) côté Cloudflare, elles ne sont utilisées que côté `functions/api/analyze-room.js` (jamais exposées au navigateur).
+Marquées comme **secrets** (chiffrées). Un redéploiement est nécessaire après leur ajout pour qu'elles soient prises en compte.
 
-### 4. Déployer
+### 3. Tester
 
-Une fois le repo connecté et les secrets ajoutés, Cloudflare Pages build et déploie automatiquement à chaque push. L'app sera accessible sur `https://<ton-projet>.pages.dev`.
+```bash
+curl -s -X POST https://<ton-projet>.workers.dev/api/analyze-room \
+  -H "Content-Type: application/json" \
+  -d '{"roomId":"<un-id-de-pièce-existant>","roomName":"test"}'
+```
+
+Une réponse `{"error":"No photos found"}` en HTTP 200 est un **bon signe** (le worker tourne, les secrets sont lus). Une 404 signifie que `wrangler.jsonc` n'est pas détecté par le pipeline. Une 500 avec `"Missing environment variable(s)..."` signifie que les secrets ne sont pas encore configurés/déployés.
 
 ## Structure du projet
 
@@ -53,17 +50,17 @@ Une fois le repo connecté et les secrets ajoutés, Cloudflare Pages build et d�
 ├── app.js                → logique front (Supabase client, routing, upload, realtime)
 ├── manifest.json         → PWA manifest
 ├── sw.js                  → service worker minimal (installabilité seulement)
-├── assets/
-│   ├── icon-192.png
-│   └── icon-512.png
-└── functions/
-    └── api/
-        └── analyze-room.js  → Cloudflare Pages Function (appel Claude API côté serveur)
+├── wrangler.jsonc         → config déploiement Cloudflare Worker + assets
+├── worker.js               → route /api/analyze-room + sert les assets statiques
+├── .assetsignore           → exclut worker.js/wrangler.jsonc/README du bundle d'assets
+└── assets/
+    ├── icon-192.png
+    └── icon-512.png
 ```
 
 ## Notes importantes
 
 - **Mot de passe app** : `ALLProperty2026`, vérifié côté client uniquement (`sessionStorage`) — aucune vraie sécurité, à ne pas considérer comme une protection de données réelle.
-- **Traitement asynchrone** : quand on lance "Analyser la pièce", le navigateur upload les photos puis déclenche `/api/analyze-room` et n'attend pas la réponse complète. Le traitement tourne côté Cloudflare Function ; le statut de la pièce se met à jour automatiquement via Supabase Realtime, même si l'app a été fermée entre-temps (au prochain chargement, le statut à jour sera de toute façon lu depuis Supabase).
+- **Traitement asynchrone** : quand on lance "Analyser la pièce", le navigateur upload les photos puis déclenche `/api/analyze-room` et n'attend pas la réponse complète. Le traitement tourne côté Worker ; le statut de la pièce se met à jour automatiquement via Supabase Realtime, même si l'app a été fermée entre-temps.
 - **Coût** : chaque pièce stocke ses tokens input/output ; le total villa (et coût estimé $3/$15 par Mtoken) s'affiche en haut de la vue villa.
 - **Rapport PDF** : le bouton "Générer rapport d'inventaire" ouvre un nouvel onglet avec une page HTML brandée ; utiliser Cmd/Ctrl+P → "Enregistrer en PDF" depuis cet onglet.

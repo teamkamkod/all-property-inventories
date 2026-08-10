@@ -1,13 +1,14 @@
-// Cloudflare Pages Function
-// POST /api/analyze-room  { roomId, roomName }
+// Cloudflare Worker (assets + API) — remplace l'ancienne convention "Pages Functions"
+// qui n'est pas reconnue par ce déploiement (Workers avec assets statiques, domaine *.workers.dev).
 //
-// Runs server-side (independent of the client browser), so the analysis
-// survives the manager closing the PWA right after triggering it.
+// Routes gérées ici :
+//   POST /api/analyze-room  { roomId, roomName }  -> déclenche l'analyse Claude côté serveur
+//   *                                              -> sert les fichiers statiques (index.html, app.js, ...)
 //
-// Required environment variables (set as Cloudflare Pages secrets):
+// Variables d'environnement requises (Settings > Variables and Secrets du Worker) :
 //   ANTHROPIC_API_KEY
 //   SUPABASE_URL
-//   SUPABASE_ANON_KEY   (anon/publishable key - RLS policies are public for this test)
+//   SUPABASE_ANON_KEY
 
 const SYSTEM_PROMPT = `Tu es un expert en inventaire immobilier pour une société de property management de villas en Thaïlande.
 
@@ -52,9 +53,20 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant/après, sans bal
   ]
 }`;
 
-export async function onRequestPost(context) {
-  const { request, env } = context;
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
 
+    if (url.pathname === '/api/analyze-room' && request.method === 'POST') {
+      return handleAnalyzeRoom(request, env);
+    }
+
+    // Tout le reste : fichiers statiques (index.html, app.js, styles.css, manifest, sw.js, assets/...)
+    return env.ASSETS.fetch(request);
+  },
+};
+
+async function handleAnalyzeRoom(request, env) {
   let body;
   try {
     body = await request.json();
@@ -67,6 +79,10 @@ export async function onRequestPost(context) {
   const SUPABASE_URL = env.SUPABASE_URL;
   const SUPABASE_KEY = env.SUPABASE_ANON_KEY;
   const ANTHROPIC_API_KEY = env.ANTHROPIC_API_KEY;
+
+  if (!SUPABASE_URL || !SUPABASE_KEY || !ANTHROPIC_API_KEY) {
+    return json({ error: 'Missing environment variable(s) on the Worker (SUPABASE_URL / SUPABASE_ANON_KEY / ANTHROPIC_API_KEY).' }, 500);
+  }
 
   try {
     // 1. Fetch photo paths for this room

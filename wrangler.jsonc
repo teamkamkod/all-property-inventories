@@ -1,0 +1,10 @@
+{
+  "name": "all-property-inventories",
+  "compatibility_date": "2025-06-05",
+  "main": "./worker.js",
+  "assets": {
+    "directory": "./",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  }
+}
