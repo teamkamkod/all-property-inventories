@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>all. Inventory</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1B1B18">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+<link rel="icon" href="assets/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Password gate -->
+<div id="gate" class="gate">
+  <div class="gate-card">
+    <div class="wordmark">all.</div>
+    <p class="gate-sub">Inventory tool</p>
+    <input type="password" id="gatePassword" placeholder="Mot de passe">
+    <button id="gateSubmit" class="btn btn-primary btn-wide">Entrer</button>
+    <p id="gateError" class="gate-error"></p>
+  </div>
+</div>
+
+<!-- App shell -->
+<div id="app" class="app hidden">
+
+  <header class="topbar">
+    <div class="wordmark small" id="homeLink">all.</div>
+    <div class="topbar-title" id="topbarTitle"></div>
+  </header>
+
+  <!-- Villas list view -->
+  <main id="view-villas" class="view">
+    <div class="view-header">
+      <h1>Villas</h1>
+    </div>
+    <div class="grid" id="villasGrid"></div>
+  </main>
+
+  <!-- Villa detail view (info + rooms grid) -->
+  <main id="view-villa" class="view hidden">
+    <button class="back-link" data-back="villas">&larr; Villas</button>
+
+    <details class="villa-info-card">
+      <summary>Informations villa <span id="villaInfoSummary"></span></summary>
+      <div class="form-grid">
+        <label>Nom<input type="text" id="villaName"></label>
+        <label>Adresse<input type="text" id="villaAddress"></label>
+        <label>Chambres<input type="number" id="villaBedrooms" min="0"></label>
+        <label>Salles de bain<input type="number" id="villaBathrooms" min="0"></label>
+        <label class="checkbox"><input type="checkbox" id="villaPool"> Piscine</label>
+        <label class="checkbox"><input type="checkbox" id="villaSeaView"> Vue mer</label>
+      </div>
+      <button id="saveVillaInfo" class="btn btn-secondary">Enregistrer</button>
+    </details>
+
+    <div class="cost-bar" id="costBar"></div>
+
+    <div class="view-header">
+      <h2>Pièces</h2>
+    </div>
+    <div class="grid" id="roomsGrid"></div>
+
+    <div class="villa-footer">
+      <details class="video-card">
+        <summary>Vidéo de fin d'inventaire (optionnel)</summary>
+        <input type="file" id="videoInput" accept="video/*">
+        <div id="videoStatus" class="muted-text"></div>
+      </details>
+
+      <button id="generateReportBtn" class="btn btn-primary btn-wide">Générer rapport d'inventaire</button>
+    </div>
+  </main>
+
+  <!-- Room detail view -->
+  <main id="view-room" class="view hidden">
+    <button class="back-link" data-back="villa">&larr; Pièces</button>
+    <div class="view-header">
+      <h2 id="roomTitle"></h2>
+      <span class="status-badge" id="roomStatusBadge"></span>
+    </div>
+
+    <div class="thumbs" id="roomThumbs"></div>
+    <input type="file" id="roomPhotoInput" accept="image/*" capture="environment" multiple>
+    <button id="analyzeRoomBtn" class="btn btn-primary btn-wide">Analyser la pièce</button>
+    <div id="roomAnalyzeStatus" class="muted-text"></div>
+
+    <div id="roomInventory" class="inventory-list"></div>
+  </main>
+
+</div>
+
+<!-- Add villa modal -->
+<div id="modalAddVilla" class="modal hidden">
+  <div class="modal-card">
+    <h3>Nouvelle villa</h3>
+    <input type="text" id="newVillaName" placeholder="Nom de la villa">
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-close-modal>Annuler</button>
+      <button class="btn btn-primary" id="confirmAddVilla">Créer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add room modal -->
+<div id="modalAddRoom" class="modal hidden">
+  <div class="modal-card">
+    <h3>Nouvelle pièce</h3>
+    <input type="text" id="newRoomName" placeholder="Ex : Chambre 1, Cuisine...">
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-close-modal>Annuler</button>
+      <button class="btn btn-primary" id="confirmAddRoom">Créer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Report confirmation modal -->
+<div id="modalReport" class="modal hidden">
+  <div class="modal-card">
+    <h3>Générer le rapport d'inventaire</h3>
+    <p class="muted-text">Le rapport inclura toutes les pièces et leurs éléments (hors vidéo). Il s'ouvrira dans un nouvel onglet, prêt à exporter en PDF via l'impression.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-close-modal>Annuler</button>
+      <button class="btn btn-primary" id="confirmGenerateReport">Générer</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="app.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+}
+</script>
+</body>
+</html>

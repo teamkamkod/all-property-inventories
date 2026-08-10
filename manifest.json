@@ -1,0 +1,14 @@
+{
+  "name": "all. Inventory",
+  "short_name": "all. Inventory",
+  "description": "Outil terrain d'inventaire de villas - all.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1B1B18",
+  "theme_color": "#1B1B18",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
