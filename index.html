@@ -39,38 +39,74 @@
     <div class="grid" id="villasGrid"></div>
   </main>
 
-  <!-- Villa detail view (info + rooms grid) -->
+  <!-- Villa detail view -->
   <main id="view-villa" class="view hidden">
     <button class="back-link" data-back="villas">&larr; Villas</button>
 
-    <details class="villa-info-card">
-      <summary>Informations villa <span id="villaInfoSummary"></span></summary>
+    <!-- Step A: initial villa info form (shown when no rooms exist yet) -->
+    <div id="onboardingStepA" class="hidden onboarding-step">
+      <div class="view-header"><h1>Informations de la villa</h1></div>
+      <p class="muted-text">Renseigne les infos de base — l'app générera automatiquement une liste de pièces à partir du nombre de chambres et salles de bain.</p>
       <div class="form-grid">
-        <label>Nom<input type="text" id="villaName"></label>
-        <label>Adresse<input type="text" id="villaAddress"></label>
-        <label>Chambres<input type="number" id="villaBedrooms" min="0"></label>
-        <label>Salles de bain<input type="number" id="villaBathrooms" min="0"></label>
-        <label class="checkbox"><input type="checkbox" id="villaPool"> Piscine</label>
-        <label class="checkbox"><input type="checkbox" id="villaSeaView"> Vue mer</label>
+        <label>Nom<input type="text" id="obaName"></label>
+        <label>Adresse<input type="text" id="obaAddress"></label>
+        <label>Chambres<input type="number" id="obaBedrooms" min="0" value="0"></label>
+        <label>Salles de bain<input type="number" id="obaBathrooms" min="0" value="0"></label>
+        <label class="checkbox"><input type="checkbox" id="obaPool"> Piscine</label>
+        <label class="checkbox"><input type="checkbox" id="obaSeaView"> Vue mer</label>
       </div>
-      <button id="saveVillaInfo" class="btn btn-secondary">Enregistrer</button>
-    </details>
-
-    <div class="cost-bar" id="costBar"></div>
-
-    <div class="view-header">
-      <h2>Pièces</h2>
+      <button id="obaContinueBtn" class="btn btn-primary btn-wide">Continuer — générer les pièces</button>
     </div>
-    <div class="grid" id="roomsGrid"></div>
 
-    <div class="villa-footer">
-      <details class="video-card">
-        <summary>Vidéo de fin d'inventaire (optionnel)</summary>
-        <input type="file" id="videoInput" accept="video/*">
-        <div id="videoStatus" class="muted-text"></div>
+    <!-- Step B: review/edit the generated room list before starting the scan -->
+    <div id="onboardingStepB" class="hidden onboarding-step">
+      <div class="view-header"><h1>Vérifie la liste des pièces</h1></div>
+      <p class="muted-text">Ajoute, renomme ou supprime des pièces si besoin. Tu pourras toujours en modifier la liste plus tard.</p>
+      <div id="obbRoomList" class="room-review-list"></div>
+      <div class="room-review-add">
+        <input type="text" id="obbNewRoomName" placeholder="Nom de la nouvelle pièce">
+        <button id="obbAddRoomBtn" class="btn btn-secondary">+ Ajouter</button>
+      </div>
+      <button id="obbValidateBtn" class="btn btn-primary btn-wide">Valider et commencer le scan</button>
+    </div>
+
+    <!-- Step C: normal villa view once rooms are confirmed -->
+    <div id="villaMain" class="hidden">
+      <details class="villa-info-card">
+        <summary>Informations villa <span id="villaInfoSummary"></span></summary>
+        <div class="form-grid">
+          <label>Nom<input type="text" id="villaName"></label>
+          <label>Adresse<input type="text" id="villaAddress"></label>
+          <label>Chambres<input type="number" id="villaBedrooms" min="0"></label>
+          <label>Salles de bain<input type="number" id="villaBathrooms" min="0"></label>
+          <label class="checkbox"><input type="checkbox" id="villaPool"> Piscine</label>
+          <label class="checkbox"><input type="checkbox" id="villaSeaView"> Vue mer</label>
+        </div>
+        <button id="saveVillaInfo" class="btn btn-secondary">Enregistrer</button>
       </details>
 
-      <button id="generateReportBtn" class="btn btn-primary btn-wide">Générer rapport d'inventaire</button>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-label"><span id="progressLabel"></span></div>
+        <div class="progress-bar-track"><div class="progress-bar-fill" id="progressFill"></div></div>
+      </div>
+
+      <div class="cost-bar" id="costBar"></div>
+
+      <div class="view-header">
+        <h2>Pièces</h2>
+      </div>
+      <div class="grid" id="roomsGrid"></div>
+
+      <div class="villa-footer">
+        <details class="video-card">
+          <summary>Vidéo de fin d'inventaire (optionnel)</summary>
+          <input type="file" id="videoInput" accept="video/*">
+          <div id="videoStatus" class="muted-text"></div>
+        </details>
+
+        <button id="exportXlsxBtn" class="btn btn-secondary btn-wide">Exporter en Excel (.xlsx)</button>
+        <button id="generateReportBtn" class="btn btn-primary btn-wide">Générer rapport d'inventaire</button>
+      </div>
     </div>
   </main>
 
@@ -130,6 +166,7 @@
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script type="module" src="app.js"></script>
 <script>
 if ('serviceWorker' in navigator) {

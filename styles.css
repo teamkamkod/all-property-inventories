@@ -363,6 +363,30 @@ input:focus { outline: 2px solid var(--clay); outline-offset: 1px; }
 }
 .item-photos-section .thumbs { margin: 6px 0; }
 .item-photos-section input[type="file"] { font-size: 12px; }
+.onboarding-step { max-width: 480px; margin: 0 auto; padding-top: 8px; }
+.onboarding-step .btn { margin-top: 16px; }
+
+.room-review-list { display: flex; flex-direction: column; gap: 8px; margin: 16px 0; }
+.room-review-item {
+  display: flex; align-items: center; gap: 8px;
+  background: white; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+.room-review-item input {
+  flex: 1; border: none; background: transparent; font-size: 14px; padding: 4px;
+}
+.room-review-item input:focus { outline: none; border-bottom: 1px solid var(--clay); }
+.room-review-item .remove-room {
+  background: none; border: none; color: var(--error); cursor: pointer; font-size: 16px; padding: 2px 6px;
+}
+.room-review-add { display: flex; gap: 8px; margin-bottom: 8px; }
+.room-review-add input { flex: 1; }
+
+.progress-bar-wrap { margin-bottom: 16px; }
+.progress-bar-label { font-size: 12px; color: var(--sage); margin-bottom: 6px; font-weight: 600; }
+.progress-bar-track { height: 8px; background: var(--cream-deep); border-radius: 20px; overflow: hidden; }
+.progress-bar-fill { height: 100%; background: var(--clay); border-radius: 20px; transition: width 0.3s var(--ease); }
+
 .modal {
   position: fixed; inset: 0; background: rgba(27,27,24,0.5);
   display: flex; align-items: center; justify-content: center; z-index: 20; padding: 20px;

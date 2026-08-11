@@ -124,6 +124,118 @@ document.getElementById('confirmAddVilla').addEventListener('click', async () =>
 async function openVilla(villaId) {
   state.currentVillaId = villaId;
   const v = state.villas.find(x => x.id === villaId);
+  document.getElementById('videoStatus').textContent = v.video_url ? 'Vidéo déjà enregistrée.' : '';
+  showView('villa');
+  await loadRooms();
+  subscribeRealtime(villaId);
+  routeVillaOnboarding();
+}
+
+function routeVillaOnboarding() {
+  const v = state.villas.find(x => x.id === state.currentVillaId);
+  const stepA = document.getElementById('onboardingStepA');
+  const stepB = document.getElementById('onboardingStepB');
+  const main = document.getElementById('villaMain');
+  stepA.classList.add('hidden');
+  stepB.classList.add('hidden');
+  main.classList.add('hidden');
+
+  if (v.rooms_confirmed) {
+    main.classList.remove('hidden');
+    renderVillaMain(v);
+  } else if (state.rooms.length === 0) {
+    stepA.classList.remove('hidden');
+    document.getElementById('obaName').value = v.name || '';
+    document.getElementById('obaAddress').value = v.address || '';
+    document.getElementById('obaBedrooms').value = v.bedrooms ?? 0;
+    document.getElementById('obaBathrooms').value = v.bathrooms ?? 0;
+    document.getElementById('obaPool').checked = !!v.has_pool;
+    document.getElementById('obaSeaView').checked = !!v.sea_view;
+  } else {
+    stepB.classList.remove('hidden');
+    renderOnboardingStepB();
+  }
+}
+
+// ---- Onboarding Step A: villa info -> generates default rooms ----
+document.getElementById('obaContinueBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('obaContinueBtn');
+  btn.disabled = true;
+  btn.textContent = 'Génération des pièces...';
+
+  const bedrooms = parseInt(document.getElementById('obaBedrooms').value) || 0;
+  const bathrooms = parseInt(document.getElementById('obaBathrooms').value) || 0;
+  const payload = {
+    name: document.getElementById('obaName').value.trim() || 'Villa',
+    address: document.getElementById('obaAddress').value.trim(),
+    bedrooms,
+    bathrooms,
+    has_pool: document.getElementById('obaPool').checked,
+    sea_view: document.getElementById('obaSeaView').checked,
+    updated_at: new Date().toISOString(),
+  };
+  await supabase.from('villas').update(payload).eq('id', state.currentVillaId);
+
+  const defaultRoomNames = [];
+  for (let i = 1; i <= bedrooms; i++) defaultRoomNames.push(`Chambre ${i}`);
+  for (let i = 1; i <= bathrooms; i++) defaultRoomNames.push(`Salle de bain ${i}`);
+  defaultRoomNames.push('Salon', 'Cuisine', 'Extérieur');
+
+  const rows = defaultRoomNames.map(name => ({ name, villa_id: state.currentVillaId, status: 'pending' }));
+  await supabase.from('rooms').insert(rows);
+
+  await loadVillas();
+  await loadRooms();
+  btn.disabled = false;
+  btn.textContent = 'Continuer — générer les pièces';
+  routeVillaOnboarding();
+});
+
+// ---- Onboarding Step B: review generated room list ----
+function renderOnboardingStepB() {
+  const list = document.getElementById('obbRoomList');
+  list.innerHTML = '';
+  state.rooms.forEach(r => {
+    const row = document.createElement('div');
+    row.className = 'room-review-item';
+    row.innerHTML = `<input type="text" value="${escapeAttr(r.name)}" data-room-id="${r.id}"><button class="remove-room" data-room-id="${r.id}">✕</button>`;
+    list.appendChild(row);
+  });
+
+  list.querySelectorAll('input[data-room-id]').forEach(input => {
+    input.addEventListener('change', async () => {
+      await supabase.from('rooms').update({ name: input.value.trim() }).eq('id', input.dataset.roomId);
+      await loadRooms();
+    });
+  });
+  list.querySelectorAll('.remove-room').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await supabase.from('rooms').delete().eq('id', btn.dataset.roomId);
+      await loadRooms();
+      renderOnboardingStepB();
+    });
+  });
+}
+
+document.getElementById('obbAddRoomBtn').addEventListener('click', async () => {
+  const input = document.getElementById('obbNewRoomName');
+  const name = input.value.trim();
+  if (!name) return;
+  await supabase.from('rooms').insert({ name, villa_id: state.currentVillaId, status: 'pending' });
+  input.value = '';
+  await loadRooms();
+  renderOnboardingStepB();
+});
+
+document.getElementById('obbValidateBtn').addEventListener('click', async () => {
+  if (state.rooms.length === 0) { alert('Ajoute au moins une pièce avant de continuer.'); return; }
+  await supabase.from('villas').update({ rooms_confirmed: true }).eq('id', state.currentVillaId);
+  await loadVillas();
+  routeVillaOnboarding();
+});
+
+// ---- Step C: normal villa view ----
+function renderVillaMain(v) {
   document.getElementById('villaName').value = v.name || '';
   document.getElementById('villaAddress').value = v.address || '';
   document.getElementById('villaBedrooms').value = v.bedrooms ?? '';
@@ -131,10 +243,17 @@ async function openVilla(villaId) {
   document.getElementById('villaPool').checked = !!v.has_pool;
   document.getElementById('villaSeaView').checked = !!v.sea_view;
   document.getElementById('villaInfoSummary').textContent = `— ${v.name}`;
-  document.getElementById('videoStatus').textContent = v.video_url ? 'Vidéo déjà enregistrée.' : '';
-  showView('villa');
-  await loadRooms();
-  subscribeRealtime(villaId);
+  renderRooms();
+  renderCostBar();
+  renderProgressBar();
+}
+
+function renderProgressBar() {
+  const total = state.rooms.length;
+  const done = state.rooms.filter(r => r.status === 'done').length;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  document.getElementById('progressLabel').textContent = `${done} / ${total} pièces scannées`;
+  document.getElementById('progressFill').style.width = `${pct}%`;
 }
 
 document.getElementById('saveVillaInfo').addEventListener('click', async () => {
@@ -165,6 +284,7 @@ function subscribeRealtime(villaId) {
         if (idx !== -1) state.rooms[idx] = payload.new;
         renderRooms();
         renderCostBar();
+        renderProgressBar();
         if (state.currentRoomId === payload.new.id && !views.room.classList.contains('hidden')) {
           renderRoomDetail();
         }
@@ -177,8 +297,12 @@ async function loadRooms() {
   const { data, error } = await supabase.from('rooms').select('*').eq('villa_id', state.currentVillaId).order('created_at');
   if (error) { console.error(error); return; }
   state.rooms = data;
-  renderRooms();
-  renderCostBar();
+  const v = state.villas.find(x => x.id === state.currentVillaId);
+  if (v && v.rooms_confirmed) {
+    renderRooms();
+    renderCostBar();
+    renderProgressBar();
+  }
 }
 
 function renderCostBar() {
@@ -578,6 +702,41 @@ document.getElementById('videoInput').addEventListener('change', async (e) => {
 });
 
 // ---- Report generation ----
+// ---- Export XLSX ----
+document.getElementById('exportXlsxBtn').addEventListener('click', async () => {
+  const villa = state.villas.find(v => v.id === state.currentVillaId);
+  const rows = [];
+  state.rooms.forEach(r => {
+    (r.inventory || []).forEach(item => {
+      rows.push({
+        'Pièce': r.name,
+        'Élément': item.item || '',
+        'Catégorie': item.category || '',
+        'Quantité': item.quantity ?? '',
+        'Matériau': item.material || '',
+        'État': item.condition || '',
+        'Notes': item.notes || '',
+        'N° série': item.serial_number || '',
+        'Garantie': item.under_warranty === 'yes' ? 'Oui' : item.under_warranty === 'no' ? 'Non' : '',
+        'Fin garantie': item.warranty_end_date || '',
+        'Source': item.source === 'manual' ? 'Manuel' : 'IA',
+      });
+    });
+  });
+
+  if (rows.length === 0) { alert('Aucun élément à exporter pour le moment.'); return; }
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [
+    { wch: 16 }, { wch: 24 }, { wch: 12 }, { wch: 8 }, { wch: 14 },
+    { wch: 12 }, { wch: 28 }, { wch: 14 }, { wch: 9 }, { wch: 12 }, { wch: 8 },
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Inventaire');
+  const filename = `inventaire-${(villa.name || 'villa').replace(/[^a-zA-Z0-9]/g, '-')}.xlsx`;
+  XLSX.writeFile(wb, filename);
+});
+
 document.getElementById('generateReportBtn').addEventListener('click', () => openModal('modalReport'));
 document.getElementById('confirmGenerateReport').addEventListener('click', () => {
   closeModal('modalReport');
