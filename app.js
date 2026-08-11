@@ -26,7 +26,7 @@ const gate = document.getElementById('gate');
 const app = document.getElementById('app');
 
 function checkGate() {
-  if (sessionStorage.getItem('aps_gate_ok') === '1') {
+  if (localStorage.getItem('aps_gate_ok') === '1') {
     gate.classList.add('hidden');
     app.classList.remove('hidden');
     initApp();
@@ -35,7 +35,7 @@ function checkGate() {
 document.getElementById('gateSubmit').addEventListener('click', () => {
   const val = document.getElementById('gatePassword').value;
   if (val === APP_PASSWORD) {
-    sessionStorage.setItem('aps_gate_ok', '1');
+    localStorage.setItem('aps_gate_ok', '1');
     checkGate();
   } else {
     document.getElementById('gateError').textContent = 'Mot de passe incorrect.';
