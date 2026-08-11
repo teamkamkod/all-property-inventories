@@ -831,15 +831,16 @@ function buildReportHtml(villa, rooms, roomPhotosByRoom, itemPhotosByItem) {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   @page { margin: 20mm 16mm; }
-  body { font-family: 'Inter', Arial, sans-serif; color: #1B1B18; max-width: 800px; margin: 0 auto; padding: 24px; background: #FAF8F4; }
-  .wordmark { font-family: 'Fraunces', Georgia, serif; font-size: 24px; font-weight: 600; letter-spacing: -0.01em; }
-  .wordmark::after { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #C67C4E; margin-left: 3px; vertical-align: middle; transform: translateY(-2px); }
-  .cover { border-bottom: 2px solid #1B1B18; padding-bottom: 18px; margin-bottom: 28px; }
+  body { font-family: 'Inter', Arial, sans-serif; color: #16211A; max-width: 800px; margin: 0 auto; padding: 24px; background: #F8F6EF; }
+  .wordmark { font-family: 'Fraunces', Georgia, serif; font-size: 24px; font-weight: 600; letter-spacing: -0.01em; color: #16211A; }
+  .wordmark::after { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #23392C; margin-left: 3px; vertical-align: middle; transform: translateY(-2px); }
+  .cover { border-bottom: 2px solid #23392C; padding-bottom: 18px; margin-bottom: 28px; }
   .cover h1 { font-family: 'Fraunces', Georgia, serif; font-weight: 500; font-size: 25px; margin: 14px 0 6px; }
   .cover .meta { font-size: 13px; color: #555; }
   .villa-facts { font-size: 13px; margin-top: 10px; color: #333; }
+  .video-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; padding: 9px 16px; background: #23392C; color: white; text-decoration: none; border-radius: 8px; font-size: 13px; font-weight: 600; }
   .room-section { margin-bottom: 30px; page-break-inside: avoid; }
-  .room-section h2 { font-family: 'Fraunces', Georgia, serif; font-weight: 500; font-size: 18px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+  .room-section h2 { font-family: 'Fraunces', Georgia, serif; font-weight: 500; font-size: 18px; border-bottom: 1px solid #ddd; padding-bottom: 5px; color: #23392C; }
   .photo-gallery { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
   .report-photo { width: 110px; height: 82px; object-fit: cover; border-radius: 6px; }
   .photo-gallery.small { margin: 6px 0 2px; }
@@ -853,9 +854,9 @@ function buildReportHtml(villa, rooms, roomPhotosByRoom, itemPhotosByItem) {
   .item-row-notes { color: #555; margin-top: 2px; font-style: italic; }
   .item-extra { font-size: 10px; color: #999; margin-top: 3px; }
   .empty { color: #999; font-style: italic; font-size: 13px; }
-  .no-print { position: sticky; top: 0; background: #1B1B18; padding: 12px 14px; margin: -24px -24px 24px; display: flex; justify-content: center; gap: 10px; z-index: 10; }
-  .no-print button { background: #C67C4E; color: white; border: none; padding: 11px 20px; border-radius: 8px; font-family: 'Inter', Arial, sans-serif; font-weight: 600; font-size: 14px; cursor: pointer; transition: background 0.15s ease; }
-  .no-print button:hover { background: #B06B3E; }
+  .no-print { position: sticky; top: 0; background: #16211A; padding: 12px 14px; margin: -24px -24px 24px; display: flex; justify-content: center; gap: 10px; z-index: 10; }
+  .no-print button { background: #C6824D; color: white; border: none; padding: 11px 20px; border-radius: 8px; font-family: 'Inter', Arial, sans-serif; font-weight: 600; font-size: 14px; cursor: pointer; transition: background 0.15s ease; }
+  .no-print button:hover { background: #A96A3B; }
   .no-print button:disabled { background: #999; }
   .no-print .btn-back { background: transparent; border: 1px solid #666; color: #eee; }
   .no-print .btn-back:hover { background: rgba(255,255,255,0.08); }
@@ -875,6 +876,7 @@ function buildReportHtml(villa, rooms, roomPhotosByRoom, itemPhotosByItem) {
       <div class="villa-facts">
         ${villa.address ? escapeHtml(villa.address) + ' · ' : ''}${villa.bedrooms || 0} chambre(s) · ${villa.bathrooms || 0} salle(s) de bain${villa.has_pool ? ' · piscine' : ''}${villa.sea_view ? ' · vue mer' : ''}
       </div>
+      ${villa.video_url ? `<a class="video-link" href="${villa.video_url}" target="_blank" rel="noopener">▶ Voir la vidéo de fin d'inventaire</a>` : ''}
     </div>
     ${roomsHtml}
   </div>
