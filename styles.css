@@ -408,6 +408,29 @@ input:focus { outline: 2px solid var(--amber); outline-offset: 1px; }
 .progress-bar-track { height: 8px; background: var(--forest-panel); border-radius: 20px; overflow: hidden; }
 .progress-bar-fill { height: 100%; background: var(--amber); border-radius: 20px; transition: width 0.3s var(--ease); }
 
+.version-bar {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  background: var(--forest-panel); border: 1px solid var(--line-dark);
+  border-radius: var(--radius); padding: 10px 14px; margin: 12px 0 16px;
+}
+.version-bar select {
+  background: transparent; color: var(--cream); border: 1px solid var(--line-dark);
+  border-radius: 6px; padding: 5px 8px; font-size: 12px; font-family: var(--font-body);
+}
+.version-bar .version-actions { display: flex; gap: 8px; }
+.version-bar .btn { padding: 8px 14px; font-size: 11px; }
+.readonly-banner {
+  background: #FBE9CE; color: var(--amber-deep); font-size: 12px; font-weight: 600;
+  padding: 8px 14px; border-radius: var(--radius-sm); margin-bottom: 14px; text-align: center;
+}
+
+.room-card-actions { display: flex; gap: 2px; }
+.icon-btn {
+  background: none; border: none; font-size: 13px; cursor: pointer;
+  padding: 3px 5px; border-radius: 5px; opacity: 0.55; color: var(--ink);
+}
+.icon-btn:hover { opacity: 1; background: var(--cream-deep); }
+
 .modal {
   position: fixed; inset: 0; background: rgba(16,31,25,0.6);
   display: flex; align-items: center; justify-content: center; z-index: 20; padding: 20px;

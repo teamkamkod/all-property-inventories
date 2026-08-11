@@ -41,7 +41,12 @@
 
   <!-- Villa detail view -->
   <main id="view-villa" class="view hidden">
-    <button class="back-link" data-back="villas">&larr; Villas</button>
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <button class="back-link" data-back="villas">&larr; Villas</button>
+      <button id="deleteVillaBtn" class="btn-delete-item hidden" title="Supprimer la villa">🗑</button>
+    </div>
+
+    <div id="versionBar" class="version-bar hidden"></div>
 
     <!-- Step A: initial villa info form (shown when no rooms exist yet) -->
     <div id="onboardingStepA" class="hidden onboarding-step">
@@ -102,6 +107,17 @@
           <summary>Vidéo de fin d'inventaire (optionnel)</summary>
           <input type="file" id="videoInput" accept="video/*">
           <div id="videoStatus" class="muted-text"></div>
+          <button id="deleteVideoBtn" class="btn btn-ghost hidden">Supprimer la vidéo</button>
+        </details>
+
+        <details class="video-card">
+          <summary>Maintenance & accès <span id="maintenanceCount" class="muted-text"></span></summary>
+          <p class="muted-text">Local technique, boîtier à clé, réassorts... Infos pratiques indépendantes du scan IA, non versionnées.</p>
+          <div id="maintenanceList" class="room-review-list"></div>
+          <div class="room-review-add">
+            <input type="text" id="newMaintenanceName" placeholder="Nom de l'élément">
+            <button id="addMaintenanceBtn" class="btn btn-secondary">+ Ajouter</button>
+          </div>
         </details>
 
         <button id="exportXlsxBtn" class="btn btn-secondary btn-wide">Exporter en Excel (.xlsx)</button>
@@ -162,6 +178,55 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" data-close-modal>Annuler</button>
       <button class="btn btn-primary" id="confirmGenerateReport">Générer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete villa confirmation -->
+<div id="modalDeleteVilla" class="modal hidden">
+  <div class="modal-card">
+    <h3>Supprimer cette villa ?</h3>
+    <p class="muted-text">Toutes les versions, pièces, photos et éléments de maintenance seront définitivement supprimés. Cette action est irréversible.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-close-modal>Annuler</button>
+      <button class="btn btn-primary" id="confirmDeleteVilla" style="background:var(--error); color:white;">Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete room confirmation -->
+<div id="modalDeleteRoom" class="modal hidden">
+  <div class="modal-card">
+    <h3>Supprimer cette pièce ?</h3>
+    <p class="muted-text">Photos et inventaire de cette pièce seront définitivement supprimés.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-close-modal>Annuler</button>
+      <button class="btn btn-primary" id="confirmDeleteRoom" style="background:var(--error); color:white;">Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Duplicate room confirmation -->
+<div id="modalDuplicateRoom" class="modal hidden">
+  <div class="modal-card">
+    <h3>Dupliquer cette pièce ?</h3>
+    <p class="muted-text">Crée une nouvelle pièce avec la même liste d'éléments (sans les photos). Utile pour des pièces similaires (ex : Chambre 2 identique à Chambre 1).</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-close-modal>Annuler</button>
+      <button class="btn btn-primary" id="confirmDuplicateRoom">Dupliquer</button>
+    </div>
+  </div>
+</div>
+
+<!-- New version choice -->
+<div id="modalNewVersion" class="modal hidden">
+  <div class="modal-card">
+    <h3>Nouvelle version d'inventaire</h3>
+    <p class="muted-text">La version précédente reste consultable en lecture seule dans l'historique.</p>
+    <div class="modal-actions" style="flex-direction:column; gap:10px; align-items:stretch;">
+      <button class="btn btn-primary btn-wide" id="confirmDuplicateVersion">Dupliquer la version précédente</button>
+      <button class="btn btn-secondary btn-wide" id="confirmScratchVersion">Repartir de zéro</button>
+      <button class="btn btn-ghost" data-close-modal>Annuler</button>
     </div>
   </div>
 </div>
