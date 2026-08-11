@@ -680,14 +680,16 @@ function buildReportHtml(villa, rooms, roomPhotosByRoom, itemPhotosByItem) {
   .item-row-notes { color: #555; margin-top: 2px; font-style: italic; }
   .item-extra { font-size: 10px; color: #999; margin-top: 3px; }
   .empty { color: #999; font-style: italic; font-family: Arial, sans-serif; font-size: 13px; }
-  .no-print { position: sticky; top: 0; background: #1B1B18; padding: 10px 14px; margin: -24px -24px 24px; display: flex; justify-content: center; z-index: 10; }
+  .no-print { position: sticky; top: 0; background: #1B1B18; padding: 10px 14px; margin: -24px -24px 24px; display: flex; justify-content: center; gap: 10px; z-index: 10; }
   .no-print button { background: #C67C4E; color: white; border: none; padding: 10px 18px; border-radius: 8px; font-family: Arial, sans-serif; font-weight: 600; font-size: 14px; cursor: pointer; }
   .no-print button:disabled { background: #999; }
+  .no-print .btn-back { background: transparent; border: 1px solid #666; color: #eee; }
   @media print { .no-print { display: none; } body { padding: 0; background: white; } }
 </style>
 </head>
 <body>
   <div class="no-print">
+    <button id="backBtn" onclick="window.close()" class="btn-back">← Retour</button>
     <button id="pdfBtn" onclick="exportToPdf()">Imprimer en PDF</button>
   </div>
   <div id="report-content">
