@@ -83,8 +83,10 @@
     </div>
 
     <div class="thumbs" id="roomThumbs"></div>
-    <input type="file" id="roomPhotoInput" accept="image/*" capture="environment" multiple>
+    <label for="roomPhotoInput" class="btn btn-photo-picker btn-wide">📷 Ajouter des photos</label>
+    <input type="file" id="roomPhotoInput" accept="image/*" capture="environment" multiple class="visually-hidden">
     <button id="analyzeRoomBtn" class="btn btn-primary btn-wide">Analyser la pièce</button>
+    <div id="analyzeHelperText" class="muted-text"></div>
     <div id="roomAnalyzeStatus" class="muted-text"></div>
 
     <div id="roomInventory" class="inventory-list"></div>

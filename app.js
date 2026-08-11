@@ -19,6 +19,7 @@ let state = {
   roomPhotosPending: [], // { base64, mediaType, previewUrl } before upload
   existingRoomPhotos: [],
   itemPhotos: [],
+  photosChangedSinceAnalysis: false,
 };
 
 // ---- Password gate ----
@@ -223,6 +224,7 @@ document.getElementById('confirmAddRoom').addEventListener('click', async () => 
 async function openRoom(roomId) {
   state.currentRoomId = roomId;
   state.roomPhotosPending = [];
+  state.photosChangedSinceAnalysis = false;
   showView('room');
   await loadRoomPhotos();
   await loadItemPhotos();
@@ -272,6 +274,7 @@ function renderRoomDetail() {
   thumbs.querySelectorAll('.remove[data-idx]').forEach(btn => {
     btn.addEventListener('click', () => {
       state.roomPhotosPending.splice(parseInt(btn.dataset.idx), 1);
+      state.photosChangedSinceAnalysis = true;
       renderRoomDetail();
     });
   });
@@ -280,12 +283,18 @@ function renderRoomDetail() {
       if (!confirm('Supprimer cette photo ?')) return;
       await supabase.storage.from('room-photos').remove([btn.dataset.existingPath]);
       await supabase.from('room_photos').delete().eq('id', btn.dataset.existingId);
+      state.photosChangedSinceAnalysis = true;
       await loadRoomPhotos();
       renderRoomDetail();
     });
   });
 
-  document.getElementById('analyzeRoomBtn').disabled = (state.roomPhotosPending.length === 0 && (state.existingRoomPhotos || []).length === 0) || r.status === 'processing';
+  const noPhotos = state.roomPhotosPending.length === 0 && (state.existingRoomPhotos || []).length === 0;
+  const alreadyAnalyzedAndUnchanged = r.status === 'done' && !state.photosChangedSinceAnalysis;
+  document.getElementById('analyzeRoomBtn').disabled = noPhotos || r.status === 'processing' || alreadyAnalyzedAndUnchanged;
+  document.getElementById('analyzeHelperText').textContent = alreadyAnalyzedAndUnchanged
+    ? 'Analyse déjà effectuée. Ajoute ou retire une photo pour pouvoir relancer une analyse.'
+    : '';
 
   // inventory
   const invDiv = document.getElementById('roomInventory');
@@ -456,6 +465,7 @@ document.getElementById('roomPhotoInput').addEventListener('change', async (e) =
     const resized = await resizeImage(file);
     state.roomPhotosPending.push(resized);
   }
+  state.photosChangedSinceAnalysis = true;
   e.target.value = '';
   renderRoomDetail();
 });
@@ -548,6 +558,7 @@ document.getElementById('analyzeRoomBtn').addEventListener('click', async () => 
     return;
   }
 
+  state.photosChangedSinceAnalysis = false;
   document.getElementById('roomAnalyzeStatus').textContent = 'Analyse lancée. Le statut se mettra à jour automatiquement.';
   document.getElementById('analyzeRoomBtn').disabled = false;
 });
@@ -655,35 +666,40 @@ function buildReportHtml(villa, rooms, roomPhotosByRoom, itemPhotosByItem) {
   return `<!DOCTYPE html>
 <html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Rapport d'inventaire — ${escapeHtml(villa.name)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   @page { margin: 20mm 16mm; }
-  body { font-family: Georgia, serif; color: #1B1B18; max-width: 800px; margin: 0 auto; padding: 24px; background: #FAF8F4; }
-  .wordmark { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
-  .cover { border-bottom: 2px solid #1B1B18; padding-bottom: 16px; margin-bottom: 24px; }
-  .cover h1 { font-size: 26px; margin: 10px 0 4px; }
-  .cover .meta { font-family: Arial, sans-serif; font-size: 13px; color: #555; }
-  .villa-facts { font-family: Arial, sans-serif; font-size: 13px; margin-top: 10px; color: #333; }
+  body { font-family: 'Inter', Arial, sans-serif; color: #1B1B18; max-width: 800px; margin: 0 auto; padding: 24px; background: #FAF8F4; }
+  .wordmark { font-family: 'Fraunces', Georgia, serif; font-size: 24px; font-weight: 600; letter-spacing: -0.01em; }
+  .wordmark::after { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #C67C4E; margin-left: 3px; vertical-align: middle; transform: translateY(-2px); }
+  .cover { border-bottom: 2px solid #1B1B18; padding-bottom: 18px; margin-bottom: 28px; }
+  .cover h1 { font-family: 'Fraunces', Georgia, serif; font-weight: 500; font-size: 25px; margin: 14px 0 6px; }
+  .cover .meta { font-size: 13px; color: #555; }
+  .villa-facts { font-size: 13px; margin-top: 10px; color: #333; }
   .room-section { margin-bottom: 30px; page-break-inside: avoid; }
-  .room-section h2 { font-size: 17px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+  .room-section h2 { font-family: 'Fraunces', Georgia, serif; font-weight: 500; font-size: 18px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
   .photo-gallery { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
-  .report-photo { width: 110px; height: 82px; object-fit: cover; border-radius: 4px; }
+  .report-photo { width: 110px; height: 82px; object-fit: cover; border-radius: 6px; }
   .photo-gallery.small { margin: 6px 0 2px; }
-  .report-photo.small { width: 70px; height: 52px; }
-  .items-list { font-family: Arial, sans-serif; font-size: 12px; }
-  .item-row { padding: 8px 0; border-bottom: 1px solid #eee; }
+  .report-photo.small { width: 70px; height: 52px; border-radius: 4px; }
+  .items-list { font-size: 12px; }
+  .item-row { padding: 9px 0; border-bottom: 1px solid #eee; }
   .item-row-main { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
   .item-row-name { font-weight: 700; font-size: 13px; }
   .item-row-qty { color: #555; }
   .item-row-detail { color: #777; }
   .item-row-notes { color: #555; margin-top: 2px; font-style: italic; }
   .item-extra { font-size: 10px; color: #999; margin-top: 3px; }
-  .empty { color: #999; font-style: italic; font-family: Arial, sans-serif; font-size: 13px; }
-  .no-print { position: sticky; top: 0; background: #1B1B18; padding: 10px 14px; margin: -24px -24px 24px; display: flex; justify-content: center; gap: 10px; z-index: 10; }
-  .no-print button { background: #C67C4E; color: white; border: none; padding: 10px 18px; border-radius: 8px; font-family: Arial, sans-serif; font-weight: 600; font-size: 14px; cursor: pointer; }
+  .empty { color: #999; font-style: italic; font-size: 13px; }
+  .no-print { position: sticky; top: 0; background: #1B1B18; padding: 12px 14px; margin: -24px -24px 24px; display: flex; justify-content: center; gap: 10px; z-index: 10; }
+  .no-print button { background: #C67C4E; color: white; border: none; padding: 11px 20px; border-radius: 8px; font-family: 'Inter', Arial, sans-serif; font-weight: 600; font-size: 14px; cursor: pointer; transition: background 0.15s ease; }
+  .no-print button:hover { background: #B06B3E; }
   .no-print button:disabled { background: #999; }
   .no-print .btn-back { background: transparent; border: 1px solid #666; color: #eee; }
+  .no-print .btn-back:hover { background: rgba(255,255,255,0.08); }
   @media print { .no-print { display: none; } body { padding: 0; background: white; } }
 </style>
 </head>
