@@ -486,21 +486,26 @@ document.getElementById('analyzeRoomBtn').addEventListener('click', async () => 
   const roomId = state.currentRoomId;
   const room = state.rooms.find(r => r.id === roomId);
   const photosToUpload = [...state.roomPhotosPending];
-  if (photosToUpload.length === 0) return;
+  const hasExistingPhotos = (state.existingRoomPhotos || []).length > 0;
+  if (photosToUpload.length === 0 && !hasExistingPhotos) return;
 
   document.getElementById('analyzeRoomBtn').disabled = true;
-  document.getElementById('roomAnalyzeStatus').textContent = 'Upload des photos...';
 
-  // 1. Upload photos to Storage + insert room_photos rows
-  for (const p of photosToUpload) {
-    const path = `${roomId}/${crypto.randomUUID()}.jpg`;
-    const blob = await (await fetch(p.previewUrl)).blob();
-    const { error: upErr } = await supabase.storage.from('room-photos').upload(path, blob, { contentType: 'image/jpeg' });
-    if (upErr) { document.getElementById('roomAnalyzeStatus').textContent = 'Erreur upload : ' + upErr.message; document.getElementById('analyzeRoomBtn').disabled = false; return; }
-    await supabase.from('room_photos').insert({ room_id: roomId, storage_path: path });
+  // 1. Upload any NEW pending photos to Storage + insert room_photos rows.
+  //    (Photos already uploaded from a previous attempt are reused as-is —
+  //    this is what makes "retry after an error" work without re-selecting files.)
+  if (photosToUpload.length > 0) {
+    document.getElementById('roomAnalyzeStatus').textContent = 'Upload des photos...';
+    for (const p of photosToUpload) {
+      const path = `${roomId}/${crypto.randomUUID()}.jpg`;
+      const blob = await (await fetch(p.previewUrl)).blob();
+      const { error: upErr } = await supabase.storage.from('room-photos').upload(path, blob, { contentType: 'image/jpeg' });
+      if (upErr) { document.getElementById('roomAnalyzeStatus').textContent = 'Erreur upload : ' + upErr.message; document.getElementById('analyzeRoomBtn').disabled = false; return; }
+      await supabase.from('room_photos').insert({ room_id: roomId, storage_path: path });
+    }
+    state.roomPhotosPending = [];
+    await loadRoomPhotos();
   }
-  state.roomPhotosPending = [];
-  await loadRoomPhotos();
 
   // 2. Mark room as processing
   await supabase.from('rooms').update({ status: 'processing', error_message: null }).eq('id', roomId);
