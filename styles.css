@@ -280,7 +280,32 @@ input:focus { outline: 2px solid var(--clay); outline-offset: 1px; }
   flex-wrap: wrap;
 }
 
-/* Modal */
+.field-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--sage);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+.btn-delete-item {
+  background: none;
+  border: none;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  opacity: 0.6;
+}
+.btn-delete-item:hover { opacity: 1; background: #F6E1DA; }
+.item-photos-section {
+  border-top: 1px dashed var(--line);
+  margin-top: 10px;
+  padding-top: 10px;
+}
+.item-photos-section .thumbs { margin: 6px 0; }
+.item-photos-section input[type="file"] { font-size: 12px; }
 .modal {
   position: fixed; inset: 0; background: rgba(27,27,24,0.5);
   display: flex; align-items: center; justify-content: center; z-index: 20; padding: 20px;

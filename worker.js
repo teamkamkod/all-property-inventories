@@ -85,6 +85,16 @@ async function handleAnalyzeRoom(request, env) {
   }
 
   try {
+    // Preserve any manually-added items already on this room before overwriting
+    // with fresh AI results (so re-running analysis doesn't wipe manual entries).
+    const currentRoomRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/rooms?id=eq.${roomId}&select=inventory`,
+      { headers: supabaseHeaders(SUPABASE_KEY) }
+    );
+    const currentRoomRows = await currentRoomRes.json();
+    const existingManualItems = (Array.isArray(currentRoomRows) && currentRoomRows[0]?.inventory || [])
+      .filter(item => item.source === 'manual');
+
     // 1. Fetch photo paths for this room
     const photosRes = await fetch(
       `${SUPABASE_URL}/rest/v1/room_photos?room_id=eq.${roomId}&select=storage_path`,
@@ -161,6 +171,13 @@ async function handleAnalyzeRoom(request, env) {
     }
 
     // 4. Update room in Supabase
+    const aiItems = (parsed.inventory || []).map(item => ({
+      id: crypto.randomUUID(),
+      source: 'ai',
+      ...item,
+    }));
+    const inventoryWithIds = [...existingManualItems, ...aiItems];
+
     await fetch(`${SUPABASE_URL}/rest/v1/rooms?id=eq.${roomId}`, {
       method: 'PATCH',
       headers: { ...supabaseHeaders(SUPABASE_KEY), 'Content-Type': 'application/json', Prefer: 'return=minimal' },
@@ -168,7 +185,7 @@ async function handleAnalyzeRoom(request, env) {
         status: 'done',
         room_type: parsed.room_type || null,
         photos_analyzed: parsed.photos_analyzed || imageBlocks.length - 1,
-        inventory: parsed.inventory || [],
+        inventory: inventoryWithIds,
         input_tokens: usage.input_tokens || 0,
         output_tokens: usage.output_tokens || 0,
         error_message: null,

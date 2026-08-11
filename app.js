@@ -17,6 +17,8 @@ let state = {
   rooms: [],
   currentRoomId: null,
   roomPhotosPending: [], // { base64, mediaType, previewUrl } before upload
+  existingRoomPhotos: [],
+  itemPhotos: [],
 };
 
 // ---- Password gate ----
@@ -223,12 +225,18 @@ async function openRoom(roomId) {
   state.roomPhotosPending = [];
   showView('room');
   await loadRoomPhotos();
+  await loadItemPhotos();
   renderRoomDetail();
 }
 
 async function loadRoomPhotos() {
   const { data } = await supabase.from('room_photos').select('*').eq('room_id', state.currentRoomId);
   state.existingRoomPhotos = data || [];
+}
+
+async function loadItemPhotos() {
+  const { data } = await supabase.from('item_photos').select('*').eq('room_id', state.currentRoomId);
+  state.itemPhotos = data || [];
 }
 
 function renderRoomDetail() {
@@ -245,14 +253,14 @@ function renderRoomDetail() {
     document.getElementById('roomAnalyzeStatus').textContent = "Cette pièce est en 'processing' depuis plus de 3 minutes — la fonction serveur a probablement échoué silencieusement. Vérifie les logs Cloudflare, puis relance l'analyse.";
   }
 
-  // thumbs: existing uploaded photos + pending ones
+  // thumbs: existing uploaded photos (deletable) + pending ones (deletable)
   const thumbs = document.getElementById('roomThumbs');
   thumbs.innerHTML = '';
   (state.existingRoomPhotos || []).forEach(p => {
     const url = `${SUPABASE_URL}/storage/v1/object/public/room-photos/${p.storage_path}`;
     const div = document.createElement('div');
     div.className = 'thumb';
-    div.innerHTML = `<img src="${url}">`;
+    div.innerHTML = `<img src="${url}"><div class="remove" data-existing-id="${p.id}" data-existing-path="${escapeAttr(p.storage_path)}">×</div>`;
     thumbs.appendChild(div);
   });
   state.roomPhotosPending.forEach((p, idx) => {
@@ -261,14 +269,23 @@ function renderRoomDetail() {
     div.innerHTML = `<img src="${p.previewUrl}"><div class="remove" data-idx="${idx}">×</div>`;
     thumbs.appendChild(div);
   });
-  thumbs.querySelectorAll('.remove').forEach(btn => {
+  thumbs.querySelectorAll('.remove[data-idx]').forEach(btn => {
     btn.addEventListener('click', () => {
       state.roomPhotosPending.splice(parseInt(btn.dataset.idx), 1);
       renderRoomDetail();
     });
   });
+  thumbs.querySelectorAll('.remove[data-existing-id]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Supprimer cette photo ?')) return;
+      await supabase.storage.from('room-photos').remove([btn.dataset.existingPath]);
+      await supabase.from('room_photos').delete().eq('id', btn.dataset.existingId);
+      await loadRoomPhotos();
+      renderRoomDetail();
+    });
+  });
 
-  document.getElementById('analyzeRoomBtn').disabled = (state.roomPhotosPending.length === 0) || r.status === 'processing';
+  document.getElementById('analyzeRoomBtn').disabled = (state.roomPhotosPending.length === 0 && (state.existingRoomPhotos || []).length === 0) || r.status === 'processing';
 
   // inventory
   const invDiv = document.getElementById('roomInventory');
@@ -276,58 +293,160 @@ function renderRoomDetail() {
   if (r.error_message) {
     invDiv.innerHTML = `<p class="muted-text" style="color:var(--error)">Erreur : ${escapeHtml(r.error_message)}</p>`;
   }
-  (r.inventory || []).forEach((item, idx) => renderItemCard(invDiv, item, idx));
+  if (!r.inventory) r.inventory = [];
+  r.inventory.forEach((item) => renderItemCard(invDiv, item, r));
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'btn btn-secondary btn-wide';
+  addBtn.textContent = '+ Ajouter un élément manuellement';
+  addBtn.addEventListener('click', () => {
+    r.inventory.push({
+      id: crypto.randomUUID(),
+      source: 'manual',
+      item: '',
+      category: 'other',
+      material: '',
+      quantity: 1,
+      quantity_type: 'exact',
+      condition: '',
+      notes: '',
+    });
+    saveInventory(r, true);
+    renderRoomDetail();
+  });
+  invDiv.appendChild(addBtn);
 }
 
-function renderItemCard(container, item, idx) {
+function renderItemCard(container, item, room) {
   const div = document.createElement('div');
   div.className = 'item-card';
   const isElectronic = item.category === 'electronic' || item.category === 'appliance';
   const estBadge = item.quantity_type === 'estimate' ? '<span class="badge-estimate">estimation</span>' : '';
+  const conditionOptions = ['', 'Neuf', 'Bon état', 'Usé', 'Vétuste'];
+  const photos = (state.itemPhotos || []).filter(p => p.item_id === item.id);
 
   div.innerHTML = `
-    <div class="item-card-row">
-      <input class="item-name" data-field="item" value="${escapeAttr(item.item || '')}">
+    <div class="item-card-row" style="justify-content:space-between; align-items:flex-start;">
+      <div style="flex:1;">
+        <label class="field-label">Élément</label>
+        <input class="item-name" data-field="item" value="${escapeAttr(item.item || '')}" placeholder="Nom de l'élément">
+      </div>
+      <button class="btn-delete-item" title="Supprimer cet élément" data-delete-item>🗑</button>
     </div>
     <div class="item-card-row">
-      <input class="field-small" data-field="quantity" value="${escapeAttr(item.quantity ?? '')}" placeholder="Qté">
-      ${estBadge}
-      <input class="field-med" data-field="material" value="${escapeAttr(item.material || '')}" placeholder="Matériau">
-      <input class="field-med" data-field="condition" value="${escapeAttr(item.condition || '')}" placeholder="État">
+      <div class="field-small">
+        <label class="field-label">Qté ${estBadge}</label>
+        <input class="field-small" data-field="quantity" value="${escapeAttr(item.quantity ?? '')}">
+      </div>
+      <div class="field-med">
+        <label class="field-label">Matériau</label>
+        <input class="field-med" data-field="material" value="${escapeAttr(item.material || '')}">
+      </div>
+      <div class="field-med">
+        <label class="field-label">État</label>
+        <select class="field-med" data-field="condition">
+          ${conditionOptions.map(opt => `<option value="${opt}" ${item.condition === opt ? 'selected' : ''}>${opt || '—'}</option>`).join('')}
+        </select>
+      </div>
     </div>
     <div class="item-card-row">
-      <input class="field-med" data-field="notes" value="${escapeAttr(item.notes || '')}" placeholder="Notes" style="flex:1 1 100%;">
+      <div style="flex:1 1 100%;">
+        <label class="field-label">Notes</label>
+        <input class="field-med" data-field="notes" value="${escapeAttr(item.notes || '')}" style="width:100%;">
+      </div>
     </div>
     ${isElectronic ? `
     <div class="warranty-fields">
-      <input class="field-med" data-field="serial_number" value="${escapeAttr(item.serial_number || '')}" placeholder="N° de série">
-      <select class="field-small" data-field="under_warranty">
-        <option value="">Garantie ?</option>
-        <option value="yes" ${item.under_warranty === 'yes' ? 'selected' : ''}>Oui</option>
-        <option value="no" ${item.under_warranty === 'no' ? 'selected' : ''}>Non</option>
-      </select>
-      <input type="date" class="field-med" data-field="warranty_end_date" value="${escapeAttr(item.warranty_end_date || '')}">
+      <div class="field-med">
+        <label class="field-label">N° de série</label>
+        <input class="field-med" data-field="serial_number" value="${escapeAttr(item.serial_number || '')}">
+      </div>
+      <div class="field-small">
+        <label class="field-label">Sous garantie</label>
+        <select class="field-small" data-field="under_warranty">
+          <option value="">—</option>
+          <option value="yes" ${item.under_warranty === 'yes' ? 'selected' : ''}>Oui</option>
+          <option value="no" ${item.under_warranty === 'no' ? 'selected' : ''}>Non</option>
+        </select>
+      </div>
+      <div class="field-med">
+        <label class="field-label">Fin garantie</label>
+        <input type="date" class="field-med" data-field="warranty_end_date" value="${escapeAttr(item.warranty_end_date || '')}">
+      </div>
     </div>` : ''}
+    <div class="item-photos-section">
+      <label class="field-label">Photos détaillées de cet élément</label>
+      <div class="thumbs item-photo-thumbs"></div>
+      <input type="file" accept="image/*" capture="environment" multiple class="item-photo-input">
+    </div>
   `;
 
   div.querySelectorAll('[data-field]').forEach(input => {
     input.addEventListener('change', () => {
-      const r = state.rooms.find(x => x.id === state.currentRoomId);
-      r.inventory[idx][input.dataset.field] = input.value;
-      saveInventory(r);
+      const field = input.dataset.field;
+      item[field] = input.value;
+      saveInventory(room);
     });
+  });
+
+  div.querySelector('[data-delete-item]').addEventListener('click', async () => {
+    if (!confirm(`Supprimer "${item.item || 'cet élément'}" ?`)) return;
+    room.inventory = room.inventory.filter(i => i.id !== item.id);
+    saveInventory(room, true);
+    // clean up any sub-photos tied to this item
+    const relatedPhotos = (state.itemPhotos || []).filter(p => p.item_id === item.id);
+    for (const p of relatedPhotos) {
+      await supabase.storage.from('item-photos').remove([p.storage_path]);
+      await supabase.from('item_photos').delete().eq('id', p.id);
+    }
+    await loadItemPhotos();
+    renderRoomDetail();
+  });
+
+  // Sub-photos: render existing + upload handler
+  const subThumbs = div.querySelector('.item-photo-thumbs');
+  photos.forEach(p => {
+    const url = `${SUPABASE_URL}/storage/v1/object/public/item-photos/${p.storage_path}`;
+    const t = document.createElement('div');
+    t.className = 'thumb';
+    t.innerHTML = `<img src="${url}"><div class="remove" data-photo-id="${p.id}" data-photo-path="${escapeAttr(p.storage_path)}">×</div>`;
+    subThumbs.appendChild(t);
+  });
+  subThumbs.querySelectorAll('.remove').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await supabase.storage.from('item-photos').remove([btn.dataset.photoPath]);
+      await supabase.from('item_photos').delete().eq('id', btn.dataset.photoId);
+      await loadItemPhotos();
+      renderRoomDetail();
+    });
+  });
+
+  div.querySelector('.item-photo-input').addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files);
+    for (const file of files) {
+      const resized = await resizeImage(file);
+      const blob = await (await fetch(resized.previewUrl)).blob();
+      const path = `${room.id}/${item.id}/${crypto.randomUUID()}.jpg`;
+      const { error } = await supabase.storage.from('item-photos').upload(path, blob, { contentType: 'image/jpeg' });
+      if (error) { alert('Erreur upload photo : ' + error.message); continue; }
+      await supabase.from('item_photos').insert({ room_id: room.id, item_id: item.id, storage_path: path });
+    }
+    await loadItemPhotos();
+    renderRoomDetail();
   });
 
   container.appendChild(div);
 }
 
 let saveTimeout = null;
-function saveInventory(room) {
+function saveInventory(room, immediate) {
   clearTimeout(saveTimeout);
-  saveTimeout = setTimeout(async () => {
+  const doSave = async () => {
     await supabase.from('rooms').update({ inventory: room.inventory, updated_at: new Date().toISOString() }).eq('id', room.id);
     renderCostBar();
-  }, 400);
+  };
+  if (immediate) { doSave(); return; }
+  saveTimeout = setTimeout(doSave, 400);
 }
 
 // ---- Photo capture + resize ----
@@ -450,70 +569,167 @@ document.getElementById('confirmGenerateReport').addEventListener('click', () =>
 });
 
 function generateReport() {
-  const villa = state.villas.find(v => v.id === state.currentVillaId);
-  const rooms = state.rooms;
+  // window.open must happen synchronously within the click handler (user gesture),
+  // before any await, otherwise it can get popup-blocked — especially in PWA contexts.
   const reportWindow = window.open('', '_blank');
-  const html = buildReportHtml(villa, rooms);
-  reportWindow.document.write(html);
+  reportWindow.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Génération du rapport…</title></head><body style="font-family:sans-serif;padding:40px;color:#1B1B18;">Génération du rapport en cours…</body></html>');
   reportWindow.document.close();
+
+  buildReportData().then(({ villa, rooms, roomPhotosByRoom, itemPhotosByItem }) => {
+    const html = buildReportHtml(villa, rooms, roomPhotosByRoom, itemPhotosByItem);
+    reportWindow.document.open();
+    reportWindow.document.write(html);
+    reportWindow.document.close();
+  }).catch(err => {
+    reportWindow.document.body.textContent = 'Erreur lors de la génération du rapport : ' + err.message;
+  });
 }
 
-function buildReportHtml(villa, rooms) {
+async function buildReportData() {
+  const villa = state.villas.find(v => v.id === state.currentVillaId);
+  const rooms = state.rooms;
+  const roomIds = rooms.map(r => r.id);
+
+  const [{ data: roomPhotos }, { data: itemPhotos }] = await Promise.all([
+    supabase.from('room_photos').select('*').in('room_id', roomIds),
+    supabase.from('item_photos').select('*').in('room_id', roomIds),
+  ]);
+
+  const roomPhotosByRoom = {};
+  (roomPhotos || []).forEach(p => {
+    (roomPhotosByRoom[p.room_id] ||= []).push(`${SUPABASE_URL}/storage/v1/object/public/room-photos/${p.storage_path}`);
+  });
+
+  const itemPhotosByItem = {};
+  (itemPhotos || []).forEach(p => {
+    (itemPhotosByItem[p.item_id] ||= []).push(`${SUPABASE_URL}/storage/v1/object/public/item-photos/${p.storage_path}`);
+  });
+
+  return { villa, rooms, roomPhotosByRoom, itemPhotosByItem };
+}
+
+function buildReportHtml(villa, rooms, roomPhotosByRoom, itemPhotosByItem) {
   const dateStr = new Date().toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' });
+
   let roomsHtml = '';
   rooms.forEach(r => {
-    const items = (r.inventory || []).map(item => {
+    const roomPhotos = roomPhotosByRoom[r.id] || [];
+    const roomGallery = roomPhotos.length
+      ? `<div class="photo-gallery">${roomPhotos.map(url => `<img class="report-photo" src="${url}" crossorigin="anonymous">`).join('')}</div>`
+      : '';
+
+    const itemsHtml = (r.inventory || []).map(item => {
       const extra = (item.category === 'electronic' || item.category === 'appliance')
-        ? `<div class="meta">N° série: ${escapeHtml(item.serial_number || '—')} · Garantie: ${item.under_warranty === 'yes' ? 'Oui' : item.under_warranty === 'no' ? 'Non' : '—'}${item.warranty_end_date ? ' (jusqu\'au ' + escapeHtml(item.warranty_end_date) + ')' : ''}</div>`
+        ? `<div class="item-extra">N° série : ${escapeHtml(item.serial_number || '—')} · Garantie : ${item.under_warranty === 'yes' ? 'Oui' : item.under_warranty === 'no' ? 'Non' : '—'}${item.warranty_end_date ? ' (jusqu\'au ' + escapeHtml(item.warranty_end_date) + ')' : ''}</div>`
         : '';
-      return `<tr>
-        <td>${escapeHtml(item.item || '')}</td>
-        <td>${escapeHtml(String(item.quantity ?? ''))}</td>
-        <td>${escapeHtml(item.material || '—')}</td>
-        <td>${escapeHtml(item.condition || '—')}</td>
-        <td>${escapeHtml(item.notes || '—')}${extra}</td>
-      </tr>`;
+      const itemPhotos = itemPhotosByItem[item.id] || [];
+      const itemGallery = itemPhotos.length
+        ? `<div class="photo-gallery small">${itemPhotos.map(url => `<img class="report-photo small" src="${url}" crossorigin="anonymous">`).join('')}</div>`
+        : '';
+      return `
+        <div class="item-row">
+          <div class="item-row-main">
+            <span class="item-row-name">${escapeHtml(item.item || '')}</span>
+            <span class="item-row-qty">× ${escapeHtml(String(item.quantity ?? ''))}</span>
+            <span class="item-row-detail">${escapeHtml(item.material || '')}${item.material && item.condition ? ' · ' : ''}${escapeHtml(item.condition || '')}</span>
+          </div>
+          ${item.notes ? `<div class="item-row-notes">${escapeHtml(item.notes)}</div>` : ''}
+          ${extra}
+          ${itemGallery}
+        </div>`;
     }).join('');
+
     roomsHtml += `
       <section class="room-section">
         <h2>${escapeHtml(r.name)}${r.room_type ? ' — ' + escapeHtml(r.room_type) : ''}</h2>
-        <table>
-          <thead><tr><th>Élément</th><th>Qté</th><th>Matériau</th><th>État</th><th>Notes</th></tr></thead>
-          <tbody>${items || '<tr><td colspan="5" class="empty">Aucun élément renseigné</td></tr>'}</tbody>
-        </table>
+        ${roomGallery}
+        <div class="items-list">${itemsHtml || '<p class="empty">Aucun élément renseigné</p>'}</div>
       </section>`;
   });
 
   return `<!DOCTYPE html>
-<html lang="fr"><head><meta charset="UTF-8"><title>Rapport d'inventaire — ${escapeHtml(villa.name)}</title>
+<html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rapport d'inventaire — ${escapeHtml(villa.name)}</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   @page { margin: 20mm 16mm; }
-  body { font-family: Georgia, serif; color: #1B1B18; max-width: 800px; margin: 0 auto; padding: 24px; }
+  body { font-family: Georgia, serif; color: #1B1B18; max-width: 800px; margin: 0 auto; padding: 24px; background: #FAF8F4; }
   .wordmark { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
   .cover { border-bottom: 2px solid #1B1B18; padding-bottom: 16px; margin-bottom: 24px; }
   .cover h1 { font-size: 26px; margin: 10px 0 4px; }
   .cover .meta { font-family: Arial, sans-serif; font-size: 13px; color: #555; }
   .villa-facts { font-family: Arial, sans-serif; font-size: 13px; margin-top: 10px; color: #333; }
-  .room-section { margin-bottom: 26px; page-break-inside: avoid; }
+  .room-section { margin-bottom: 30px; page-break-inside: avoid; }
   .room-section h2 { font-size: 17px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
-  table { width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 12px; }
-  th { text-align: left; background: #F0ECE3; padding: 6px 8px; }
-  td { padding: 6px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
-  td .meta { font-size: 10px; color: #777; margin-top: 3px; }
-  .empty { color: #999; font-style: italic; }
-  @media print { body { padding: 0; } }
+  .photo-gallery { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+  .report-photo { width: 110px; height: 82px; object-fit: cover; border-radius: 4px; }
+  .photo-gallery.small { margin: 6px 0 2px; }
+  .report-photo.small { width: 70px; height: 52px; }
+  .items-list { font-family: Arial, sans-serif; font-size: 12px; }
+  .item-row { padding: 8px 0; border-bottom: 1px solid #eee; }
+  .item-row-main { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .item-row-name { font-weight: 700; font-size: 13px; }
+  .item-row-qty { color: #555; }
+  .item-row-detail { color: #777; }
+  .item-row-notes { color: #555; margin-top: 2px; font-style: italic; }
+  .item-extra { font-size: 10px; color: #999; margin-top: 3px; }
+  .empty { color: #999; font-style: italic; font-family: Arial, sans-serif; font-size: 13px; }
+  .no-print { position: sticky; top: 0; background: #1B1B18; padding: 10px 14px; margin: -24px -24px 24px; display: flex; justify-content: center; z-index: 10; }
+  .no-print button { background: #C67C4E; color: white; border: none; padding: 10px 18px; border-radius: 8px; font-family: Arial, sans-serif; font-weight: 600; font-size: 14px; cursor: pointer; }
+  .no-print button:disabled { background: #999; }
+  @media print { .no-print { display: none; } body { padding: 0; background: white; } }
 </style>
 </head>
 <body>
-  <div class="cover">
-    <div class="wordmark">all.</div>
-    <h1>Rapport d'inventaire — ${escapeHtml(villa.name)}</h1>
-    <div class="meta">Généré le ${dateStr}</div>
-    <div class="villa-facts">
-      ${villa.address ? escapeHtml(villa.address) + ' · ' : ''}${villa.bedrooms || 0} chambre(s) · ${villa.bathrooms || 0} salle(s) de bain${villa.has_pool ? ' · piscine' : ''}${villa.sea_view ? ' · vue mer' : ''}
-    </div>
+  <div class="no-print">
+    <button id="pdfBtn" onclick="exportToPdf()">Imprimer en PDF</button>
   </div>
-  ${roomsHtml}
+  <div id="report-content">
+    <div class="cover">
+      <div class="wordmark">all.</div>
+      <h1>Rapport d'inventaire — ${escapeHtml(villa.name)}</h1>
+      <div class="meta">Généré le ${dateStr}</div>
+      <div class="villa-facts">
+        ${villa.address ? escapeHtml(villa.address) + ' · ' : ''}${villa.bedrooms || 0} chambre(s) · ${villa.bathrooms || 0} salle(s) de bain${villa.has_pool ? ' · piscine' : ''}${villa.sea_view ? ' · vue mer' : ''}
+      </div>
+    </div>
+    ${roomsHtml}
+  </div>
+  <script>
+    // Real client-side PDF generation (not window.print/browser print dialog,
+    // which is unreliable inside an installed PWA in standalone mode).
+    async function exportToPdf() {
+      const btn = document.getElementById('pdfBtn');
+      btn.disabled = true;
+      btn.textContent = 'Génération du PDF…';
+      try {
+        const { jsPDF } = window.jspdf;
+        const element = document.getElementById('report-content');
+        const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: '#FAF8F4' });
+        const imgData = canvas.toDataURL('image/jpeg', 0.92);
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+        let heightLeft = imgHeight;
+        let position = 0;
+        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
+        heightLeft -= pageHeight;
+        while (heightLeft > 0) {
+          position = heightLeft - imgHeight;
+          pdf.addPage();
+          pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
+          heightLeft -= pageHeight;
+        }
+        pdf.save('inventaire-${escapeHtml(villa.name).replace(/[^a-zA-Z0-9]/g, '-')}.pdf');
+      } catch (err) {
+        alert('Erreur génération PDF : ' + err.message);
+      }
+      btn.disabled = false;
+      btn.textContent = 'Imprimer en PDF';
+    }
+  <\/script>
 </body></html>`;
 }
 
