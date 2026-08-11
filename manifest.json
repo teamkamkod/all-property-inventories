@@ -4,8 +4,8 @@
   "description": "Outil terrain d'inventaire de villas - all.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1B1B18",
-  "theme_color": "#1B1B18",
+  "background_color": "#1E3B2F",
+  "theme_color": "#1E3B2F",
   "orientation": "portrait-primary",
   "icons": [
     { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png" },
