@@ -2,6 +2,7 @@
   "name": "all-property-inventories",
   "compatibility_date": "2025-06-05",
   "main": "./worker.js",
+  "keep_vars": true,
   "assets": {
     "directory": "./",
     "binding": "ASSETS",
